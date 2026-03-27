@@ -36,13 +36,14 @@ const auth = () => { // Pass the express app instance
     
                 const isMatch = await bcrypt.compare(password, user.password);
                 console.log('Password match:', isMatch); // Check the comparison result
-    
+
                 if (isMatch) {
-                  console.log("login success")
-                    return done(null, user); // Success!
+                    console.log("login success")
+                    const { password: _pw, ...userWithoutPassword } = user;
+                    return done(null, userWithoutPassword); // success
                 }
-    
-    
+
+
                 return done(null, false, { message: 'Password incorrect' }); // Failure
             } catch (err) {
                 console.error('Error during authentication:', err); // Check for errors
@@ -52,9 +53,9 @@ const auth = () => { // Pass the express app instance
     ));
 
     passport.serializeUser((user, done) => {
-        console.log("user in serialize", user) //check user object
+        //console.log("user in serialize", user) //check user object
         if (!user || !user._id) {
-            console.error("User object or _id is missing!");
+            //console.error("User object or _id is missing!");
             return done(new Error("User object or _id is missing!")); // Handle the error
         }
         done(null, user._id.toString());
@@ -73,25 +74,35 @@ const auth = () => { // Pass the express app instance
     // });
 
     passport.deserializeUser(async (id, done) => {
-        console.log("🔄 Deserializing user with ID:", id);
+        //console.log("🔄 Deserializing user with ID:", id);
     
         if (!id) {
-            console.error("❌ No ID found in session");
+            //console.error("❌ No ID found in session");
             return done(null, false);
         }
     
         try {
-            const user = await db.collection('User').findOne({ _id: new ObjectId(id) });
-            
-            if (!user) {
-                console.error("❌ User not found in DB for ID:", id);
+            //const user = await db.collection('User').findOne({ _id: new ObjectId(id) });
+            const users = await db.collection('User').aggregate([
+                { $match: { _id: new ObjectId(id) } },
+                {
+                    $lookup: {
+                        from: "Role",
+                        localField: "role",
+                        foreignField: "_id",
+                        as: "role"
+                    }
+                }
+            ]).toArray();
+
+            if (!users || users.length === 0) {
                 return done(null, false);
             }
-    
-            console.log("✅ User restored from session:", user);
-            done(null, user);
+
+            const { password, ...userWithoutPassword } = users[0];
+            done(null, userWithoutPassword);
         } catch (err) {
-            console.error("❌ Error during deserialization:", err);
+            //console.error("❌ Error during deserialization:", err);
             done(err);
         }
     });
