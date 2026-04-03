@@ -6,6 +6,7 @@ import passport from 'passport';
 import users from "./routes/user.js";
 import team from "./routes/team.js";
 import tenant from "./routes/tenant.js"
+import events from "./routes/event.js";
 import auth from "./auth.js";
 import db from "./db/connection.js";
 import 'dotenv/config';
@@ -23,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
-    secret: 'mygiud123',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false, 
     cookie:{secure: false, httpOnly: true, maxAge: 1000 * 60 * 60 * 24}
@@ -33,13 +34,14 @@ app.use(session({
     //     maxAge: 1000 * 60 * 60 * 24
     // }
 }));
-
+auth();
 app.use(passport.initialize());
 app.use(passport.session());
 
 app.use("/user", users);
 app.use("/team", team);
 app.use("/tenant", tenant);
+app.use("/event", events);
 app.listen(PORT, () => { console.log(`Server listening to port ${PORT}`)});
 
 auth(); 
@@ -72,6 +74,7 @@ app.post('/register', async (req, res) => {
             name: req.body.name,
             password: hashedPassword,
             isCaptain: req.body.isCaptain,
+            // TODO: make dynamic
             tenantId:new ObjectId('67735f0807555099312d6335'),
             role:[ new ObjectId('6777500605c03a5c5e24ba63')]
         };
