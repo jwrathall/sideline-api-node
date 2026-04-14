@@ -39,4 +39,43 @@ router.get("/:id", isAuthenticated, tenantMiddleware, async (req, res) => {
         res.status(500).json({ error: "Error fetching event" });
     }
 })
+
+router.post("/", isAuthenticated, tenantMiddleware, async (req, res) => {
+    try{
+        const event = {
+            tenantId: req.tenantId,
+            name: req.body.name,
+            type: req.body.type,
+            status: 'draft',
+            startDate: new Date(req.body.startDate),
+            endDate: new Date(req.body.endDate),
+            facilityIds: req.body.facilityId ? [new ObjectId(req.body.facilityId)] : [],
+            visibility: {
+                schedulePublic: false,
+                rostersPublic: false,
+                playerNamesPublic: false,
+                requiresApproval: false
+            },
+            notifications: {
+                emailEnabled: true,
+                reminderMinutesBefore: 30,
+                notifyOnScoreEntry: true,
+                notifyOnScheduleChange: true
+            },
+            schedule: {
+                recurring: req.body.type === 'league',
+                startTime: '',
+                endTime: '',
+                gameDuration: 20,
+                transitionTime: 5
+            },
+            createdAt: new Date()
+        };
+        const result = await db.collection('Event').insertOne(event);
+        res.status(201).json({ event: { ...event, _id: result.insertedId } });
+    }catch (error) {
+        console.error('Error creating event:', error);
+        res.status(500).json({ error: 'Error creating event' });
+    }
+})
 export default router;
