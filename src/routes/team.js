@@ -1,40 +1,106 @@
 import express from "express";
-
-// This will help us connect to the database
 import db from "../db/connection.js";
-
-// This help convert the id from string to ObjectId for the _id.
 import { ObjectId } from "mongodb";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import { isAuthenticated } from "../auth.js";
 
-// router is an instance of the express router.
-// We use it to define our routes.
-// The router will be added as a middleware and will take control of requests starting with path /record.
 const router = express.Router();
 
-router.get("/", async (req,res) =>{
-  let collection = await db.collection("Teams")
-  const results = await collection.aggregate([
-    {
-      $lookup: {
-        from: "Users", // The name of the referenced collection
-        localField: "captain", // Field in 'Teams' with the reference(s)
-        foreignField: "_id", // Field in 'Players' that matches the reference
-        as: "captain" // Alias for the joined documents
-      }
-    },
-    {
-        $lookup: {
-          from: "Users", // Collection for members
-          localField: "members", // Field in Teams containing member ObjectIds
-          foreignField: "_id", // Field in Users matching the ObjectIds
-          as: "members" // Alias for the joined members
-        }
-      }
-  ]).toArray();
+router.get("/", isAuthenticated, tenantMiddleware, async(req, res) => {
 
-  res.send(results).status(200);
-});
+  try {
+    const { eventId } = req.query;
+    if (!eventId) return res.status(400).json({ error: "eventId is required" });
+    const teams = await db.collection("Team")
+        .find({
+            tenantId: req.tenantId,
+            eventId : new ObjectId(eventId)
+        }).toArray();
+
+    res.json({ teams });
+
+
+  }catch(err) {
+    console.error("Error fetching teams:", err);
+    res.status(500).json({ error: "Error fetching teams" });
+  }finally {
+
+  }
+})
+
+router.post("/", isAuthenticated, tenantMiddleware, async(req, res) => {
+
+  try {
+    const team = {
+      tenantId: req.tenantId,
+      eventId: new ObjectId(req.body.eventId),
+      name: req.body.name,
+      captainId: req.body.captainId ? new ObjectId(req.body.captainId) : null,
+      divisionId: req.body.divisionId ? new ObjectId(req.body.divisionId) : null,
+      members: req.body.members ? req.body.members.map(id => new ObjectId(id)) : [],
+      status: 'draft',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await db.collection('Team').insertOne(team);
+    res.status(201).json({ team: { ...team, _id: result.insertedId } });
+
+  }catch(err) {
+    console.error("Error creating teams:", err);
+    res.status(500).json({ error: "Error fetching teams" });
+  }finally {
+
+  }
+})
+
+router.patch("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
+
+  try {
+    const updates = {};
+
+    if (req.body.name) updates.name = req.body.name;
+    if (req.body.captainId !== undefined) updates.captainId = req.body.captainId ? new ObjectId(req.body.captainId) : null;
+    if (req.body.divisionId !== undefined) updates.divisionId = req.body.divisionId ? new ObjectId(req.body.divisionId) : null;
+    if (req.body.members) updates.members = req.body.members.map(id => new ObjectId(id));
+    if (req.body.status) updates.status = req.body.status;
+    updates.updatedAt = new Date();
+
+    const result = await db.collection("Team").updateOne(
+        { _id: new ObjectId(req.params.id), tenantId: req.tenantId },
+        { $set: updates }
+    );
+
+    if (result.matchedCount === 0) return res.status(404).json({ error: "Team not found" });
+    res.json({ message: "Team updated" });
+
+  }catch(err) {
+    console.error("Error updating teams:", err);
+    res.status(500).json({ error: "Error updating teams" });
+  }finally {
+
+  }
+})
+
+router.delete("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
+
+  try {
+    const result = await db.collection("Team").deleteOne({
+      _id: new ObjectId(req.params.id),
+      tenantId: req.tenantId
+    });
+
+    if (result.deletedCount === 0) return res.status(404).json({ error: "Team not found" });
+
+    res.json({ message: "Team deleted" });
+
+  }catch(err) {
+    console.error("Error deleting teams:", err);
+    res.status(500).json({ error: "Error deleting teams" });
+  }finally {
+
+  }
+})
+
 
 export default router;
-
-
