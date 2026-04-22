@@ -33,6 +33,12 @@ Permission documents exist in Atlas on Role collection but are shelved for v2. R
 ## Middleware Order
 isAuthenticated → tenantMiddleware → route handler
 
+## Routes
+- `/user`   → routes/user.js   — full CRUD, tenant scoped, + /current session endpoint
+- `/team`   → routes/team.js   — full CRUD, tenant scoped, GET "/" requires `eventId` query param, PATCH `/:id/reset` clears roster members without affecting captain
+- `/event`  → routes/event.js  — full CRUD, tenant scoped
+- `/tenant` → routes/tenant.js — lookup only, no auth guard yet
+
 ## Folder Structure
 src/
 routes/       — Express route handlers (thin, no business logic)
@@ -54,7 +60,7 @@ Submissions     — versioned score entries, audit trail
 Facility        — physical building (Milton Sports Centre)
 Venue           — specific space within facility (Gym 1, Rink 2)
 Team            — group of players for a specific event
-User            — player, captain, admin or tenant_admin
+User            — player, captain, admin or tenant_admin; all queries scoped by tenantId
 Role            — role definition with permissions array
 
 ## Data Hierarchy
@@ -68,6 +74,11 @@ Tenant
 └── Venue
 └── Team
 └── User
+
+## Known TODOs
+- `server.js /register` — `tenantId` is hardcoded, needs to be dynamic
+- `/tenant` route — no auth guard, should add `isAuthenticated` before shipping
+- `auth()` is called twice in server.js (lines 37 and 47) — one call should be removed
 
 ## Environment Variables
 ATLAS_URI=mongodb+srv://...

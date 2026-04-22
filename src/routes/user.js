@@ -1,192 +1,107 @@
 import express from "express";
-
-// This will help us connect to the database
 import db from "../db/connection.js";
-
-// This help convert the id from string to ObjectId for the _id.
 import { ObjectId } from "mongodb";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import { isAuthenticated } from "../auth.js";
 
-
-// router is an instance of the express router.
-// We use it to define our routes.
-// The router will be added as a middleware and will take control of requests starting with path /record.
 const router = express.Router();
 
-router.get('/current',  (req, res) => {
-  if (req.isAuthenticated()) {
-   res.json({
-     user: req.user, // This contains user details stored in session
-     isAuthenticated: true
-   });
- } else {
-   res.status(401).json({ message: 'Not authenticated', isAuthenticated: false });
- }
+router.get('/current', isAuthenticated, (req, res) => {
+  res.json({ user: req.user, isAuthenticated: true });
 });
 
-// get all users
-router.get("/", async (req,res) =>{
-  let collection = await db.collection("User")
-  let results = await collection.aggregate([
-    {
-      $lookup: {
-        from: "Role", // The name of the referenced collection
-        localField: "role", // Field in 'Teams' with the reference(s)
-        foreignField: "_id", // Field in 'Players' that matches the reference
-        as: "role" // Alias for the joined documents
-      }
-    }
-  ]).toArray();
-  res.send(results).status(200);
-});
-
-
-// get single user
-router.get("/:id", async (req, res) => {
-  const query = { _id: new ObjectId(req.params.id) };
-  let collection = await db.collection("User");
-  //let result = await collection.findOne(query);
-  let result = await collection.aggregate([
-    {
-      $match: query // Filter for the specific user by ID
-    },
-    {
-      $lookup: {
-        from: "Role", // The name of the referenced collection
-        localField: "role", // Field in 'Users' with the reference(s)
-        foreignField: "_id", // Field in 'Role' that matches the reference
-        as: "role" // Alias for the joined documents (array of roles)
-      }
-    }
-  ]).toArray();
-
-  if (!result) res.send("Not found").status(404);
-  else res.send(result).status(200);
-});
-
-// create a new record.
-router.post("/", async (req, res) => {
+// get all users for tenant
+router.get("/", isAuthenticated, tenantMiddleware, async (req, res) => {
   try {
-    let newDocument = {
-      createdAt:new Date(),
-      email:req.body.email,
+    const results = await db.collection("User").aggregate([
+      { $match: { tenantIds: req.tenantId } },
+      {
+        $lookup: {
+          from: "Role",
+          localField: "role",
+          foreignField: "_id",
+          as: "role"
+        }
+      }
+    ]).toArray();
+    res.json({ users: results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error fetching users" });
+  }
+});
+
+// get single user for tenant
+router.get("/:id", isAuthenticated, tenantMiddleware, async (req, res) => {
+  try {
+    const result = await db.collection("User").aggregate([
+      { $match: { _id: new ObjectId(req.params.id), tenantId: req.tenantId } },
+      {
+        $lookup: {
+          from: "Role",
+          localField: "role",
+          foreignField: "_id",
+          as: "role"
+        }
+      }
+    ]).toArray();
+
+    if (!result.length) return res.status(404).json({ error: "User not found" });
+    res.json({ user: result[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error fetching user" });
+  }
+});
+
+// create a new user under tenant
+router.post("/", isAuthenticated, tenantMiddleware, async (req, res) => {
+  try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    const newDocument = {
+      tenantId: [req.tenantId],
+      createdAt: new Date(),
+      email: req.body.email,
       name: req.body.name,
-      password: req.body.password,
+      password: hashedPassword,
       isCaptain: req.body.isCaptain
     };
-    let collection = await db.collection("User");
-    let result = await collection.insertOne(newDocument);
-    res.send(result).status(204);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error adding record");
-  }
-});
-
-// update a record by id.
-router.patch("/:id", async (req, res) => {
-  try {
-    const query = { _id: new ObjectId(req.params.id) };
-    const updates = {
-      $set: {
-        createdAt:new Date(),
-      },
-    };
-
-    let collection = await db.collection("User");
-    let result = await collection.updateOne(query, updates);
-    res.send(result).status(200);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error updating record");
-  }
-});
-
-// delete a record
-router.delete("/:id", async (req, res) => {
-  try {
-    const query = { _id: new ObjectId(req.params.id) };
-
     const collection = db.collection("User");
-    let result = await collection.deleteOne(query);
-
-    res.send(result).status(200);
+    const result = await collection.insertOne(newDocument);
+    res.status(201).json({ user: { ...newDocument, _id: result.insertedId } });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error deleting record");
+    res.status(500).json({ error: "Error adding user" });
   }
 });
 
+// update a user (scoped to tenant)
+router.patch("/:id", isAuthenticated, tenantMiddleware, async (req, res) => {
+  try {
+    const query = { _id: new ObjectId(req.params.id), tenantId: req.tenantId };
+    const updates = { $set: { updatedAt: new Date() } };
+    const collection = db.collection("User");
+    const result = await collection.updateOne(query, updates);
+    if (result.matchedCount === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error updating user" });
+  }
+});
 
-
-//* Original Mongo tutorial  */
-// // This section will help you get a list of all the records.
-// router.get("/", async (req, res) => {
-//   let collection = await db.collection("records");
-//   let results = await collection.find({}).toArray();
-//   res.send(results).status(200);
-// });
-
-// // This section will help you get a single record by id
-// router.get("/:id", async (req, res) => {
-//   let collection = await db.collection("records");
-//   let query = { _id: new ObjectId(req.params.id) };
-//   let result = await collection.findOne(query);
-
-//   if (!result) res.send("Not found").status(404);
-//   else res.send(result).status(200);
-// });
-
-// // This section will help you create a new record.
-// router.post("/", async (req, res) => {
-//   try {
-//     let newDocument = {
-//       name: req.body.name,
-//       position: req.body.position,
-//       level: req.body.level,
-//     };
-//     let collection = await db.collection("records");
-//     let result = await collection.insertOne(newDocument);
-//     res.send(result).status(204);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Error adding record");
-//   }
-// });
-
-// This section will help you update a record by id.
-// router.patch("/:id", async (req, res) => {
-//   try {
-//     const query = { _id: new ObjectId(req.params.id) };
-//     const updates = {
-//       $set: {
-//         name: req.body.name,
-//         position: req.body.position,
-//         level: req.body.level,
-//       },
-//     };
-
-//     let collection = await db.collection("records");
-//     let result = await collection.updateOne(query, updates);
-//     res.send(result).status(200);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Error updating record");
-//   }
-// });
-
-// // This section will help you delete a record
-// router.delete("/:id", async (req, res) => {
-//   try {
-//     const query = { _id: new ObjectId(req.params.id) };
-
-//     const collection = db.collection("records");
-//     let result = await collection.deleteOne(query);
-
-//     res.send(result).status(200);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Error deleting record");
-//   }
-// });
+// delete a user (scoped to tenant)
+router.delete("/:id", isAuthenticated, tenantMiddleware, async (req, res) => {
+  try {
+    const query = { _id: new ObjectId(req.params.id), tenantId: req.tenantId };
+    const collection = db.collection("User");
+    const result = await collection.deleteOne(query);
+    if (result.deletedCount === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error deleting user" });
+  }
+});
 
 export default router;

@@ -28,6 +28,21 @@ router.get("/", isAuthenticated, tenantMiddleware, async(req, res) => {
   }
 })
 
+router.get("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
+  try {
+    const team = await db.collection("Team").findOne({
+      _id: new ObjectId(req.params.id),
+      tenantId: req.tenantId
+    });
+
+    if (!team) return res.status(404).json({ error: "Team not found" });
+    res.json({ team });
+  } catch(err) {
+    console.error("Error fetching team:", err);
+    res.status(500).json({ error: "Error fetching team" });
+  }
+})
+
 router.post("/", isAuthenticated, tenantMiddleware, async(req, res) => {
 
   try {
@@ -81,6 +96,20 @@ router.patch("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
 
   }
 })
+
+router.patch('/:id/reset', isAuthenticated, tenantMiddleware, async (req, res) => {
+  try {
+    const query = { _id: new ObjectId(req.params.id), tenantId: req.tenantId };
+    const result = await db.collection('Team').updateOne(query, {
+      $set: { members: [] }
+    });
+    if (result.matchedCount === 0) return res.status(404).json({ error: 'Team not found' });
+    res.json({ message: 'Roster cleared' });
+  } catch (error) {
+    console.error('Error clearing roster:', error);
+    res.status(500).json({ error: 'Error clearing roster' });
+  }
+});
 
 router.delete("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
 
