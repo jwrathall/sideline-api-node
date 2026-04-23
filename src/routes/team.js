@@ -11,11 +11,23 @@ router.get("/", isAuthenticated, tenantMiddleware, async(req, res) => {
   try {
     const { eventId } = req.query;
     if (!eventId) return res.status(400).json({ error: "eventId is required" });
-    const teams = await db.collection("Team")
-        .find({
-            tenantId: req.tenantId,
-            eventId : new ObjectId(eventId)
-        }).toArray();
+    const teams = await db.collection("Team").aggregate([
+      { $match: { tenantId: req.tenantId, eventId: new ObjectId(eventId) } },
+      {
+        $lookup: {
+          from: "User",
+          localField: "captainId",
+          foreignField: "_id",
+          as: "captain"
+        }
+      },
+      {
+        $addFields: {
+          captainName: { $arrayElemAt: ["$captain.name", 0] }
+        }
+      },
+      { $project: { captain: 0 } }
+    ]).toArray();
 
     res.json({ teams });
 
