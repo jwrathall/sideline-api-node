@@ -111,15 +111,22 @@ router.patch("/:id", isAuthenticated, tenantMiddleware, async(req, res) => {
 
 router.patch('/:id/reset', isAuthenticated, tenantMiddleware, async (req, res) => {
   try {
-    const query = { _id: new ObjectId(req.params.id), tenantId: req.tenantId };
-    const result = await db.collection('Team').updateOne(query, {
-      $set: { members: [] }
+    const team = await db.collection('Team').findOne({
+      _id: new ObjectId(req.params.id),
+      tenantId: req.tenantId
     });
-    if (result.matchedCount === 0) return res.status(404).json({ error: 'Team not found' });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    const keepMembers = team.captainId ? [team.captainId.toString()] : [];
+
+    const result = await db.collection('Team').updateOne(
+        { _id: new ObjectId(req.params.id), tenantId: req.tenantId },
+        { $set: { members: keepMembers, updatedAt: new Date() } }
+    );
     res.json({ message: 'Roster cleared' });
-  } catch (error) {
-    console.error('Error clearing roster:', error);
-    res.status(500).json({ error: 'Error clearing roster' });
+  } catch (err) {
+    console.error('Error resetting roster:', err);
+    res.status(500).json({ error: 'Error resetting roster' });
   }
 });
 
