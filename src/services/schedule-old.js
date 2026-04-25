@@ -49,7 +49,7 @@ function scheduleMatchesRandomized(teams, gyms, matchDuration = 20) {
             });
         }
 
-        // Store the schedule for this round
+        // Store the scheduleOld for this round
         schedule.push(roundSchedule);
 
         // Rotate the array for the next round
@@ -62,6 +62,6 @@ function scheduleMatchesRandomized(teams, gyms, matchDuration = 20) {
 // Example usage
 const teams = ["Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7", "Team 8", "Team 9"];
 const gyms = ["Gym 1", "Gym 2", "Gym 3", "Gym 4"];
-const schedule = scheduleMatchesRandomized(teams, gyms);
+const scheduleOld = scheduleMatchesRandomized(teams, gyms);
 
-console.log(JSON.stringify(schedule, null, 2));
+console.log(JSON.stringify(scheduleOld, null, 2));

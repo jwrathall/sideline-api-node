@@ -3,6 +3,7 @@ import db from "../db/connection.js";
 import { ObjectId} from 'mongodb';
 import {tenantMiddleware} from '../middleware/tenant.js';
 import { isAuthenticated } from "../auth.js";
+import {generateSchedule} from "../services/schedule.js"
 
 const router = express.Router();
 
@@ -76,6 +77,50 @@ router.post("/", isAuthenticated, tenantMiddleware, async (req, res) => {
     }catch (error) {
         console.error('Error creating event:', error);
         res.status(500).json({ error: 'Error creating event' });
+    }
+})
+
+router.post("/:id/generate", isAuthenticated, tenantMiddleware, async (req, res) => {
+    try{
+        const event = await db.collection("Event").findOne({
+            _id: new ObjectId(req.params.id),
+            tenantId: req.tenantId
+        })
+        if (!event) return res.status(404).json({ error: 'Event not found' });
+
+        const teams = await db.collection('Team').find({
+            eventId: new ObjectId(req.params.id),
+            tenantId: req.tenantId,
+            status: { $in: ['active', 'draft'] }
+        }).toArray();
+
+        if (teams.length < 2) return res.status(400).json({ error: 'Need at least 2 teams' });
+
+        // 1. get the facility
+        const facility = await db.collection('Facility').findOne({
+            _id: { $in: event.facilityIds.map(id => new ObjectId(id)) },
+            tenantId: req.tenantId
+        });
+
+        if (!facility) return res.status(400).json({ error: 'No facility found' });
+
+        const venues = await db.collection('Venue').find({
+            _id: { $in: facility.venueIds }
+        }).toArray();
+
+        if (venues.length === 0) return res.status(400).json({ error: 'No venues found' });
+
+       // res.status(201).json({ message: 'Schedule generation coming soon' });
+        const result = await generateSchedule(event, teams, venues, db);
+        res.status(201).json({
+            message: 'Schedule generated',
+            numSlots: result.numSlots
+        });
+
+    }
+    catch(err){
+        console.error('Error generating schedule:', error);
+        res.status(500).json({ error: 'Error generating schedule' });
     }
 })
 export default router;

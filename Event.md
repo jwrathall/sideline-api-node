@@ -8,7 +8,7 @@ phases, divisions, slots, games, standings, and submissions.
 ## Event Lifecycle
 draft → active → complete
 - `draft` — event created, not yet visible to players
-- `active` — published, players can see schedule
+- `active` — published, players can see scheduleOld
 - `complete` — event finished, scores locked, standings final
 
 ## Subsystems
@@ -51,7 +51,7 @@ See ARCHITECTURE.md Pending Features.
 - `status: draft`
 - `visibility: all false`
 - `notifications: emailEnabled, reminderMinutesBefore: 30`
-- `schedule: gameDuration: 20, transitionTime: 5`
+- `scheduleOld: gameDuration: 20, transitionTime: 5`
 
 ---
 
@@ -176,8 +176,8 @@ Event created → Draft created → Draft open → Players assigned → Draft co
 **Status:** Not yet built
 
 **Concept:**
-- TD configures the schedule settings before generating
-- Settings live on Event.schedule object
+- TD configures the scheduleOld settings before generating
+- Settings live on Event.scheduleOld object
 - Different for league vs tournament
 
 **League settings:**
@@ -291,7 +291,7 @@ Teams are prioritized for play based on:
 **Status:** Not yet built
 
 **Concept:**
-- TD reviews generated schedule before publishing
+- TD reviews generated scheduleOld before publishing
 - Can drag/drop games between slots (v2)
 - Can manually override specific game times
 - Override tracked: `isOverride: true, overrideReason: string` on Game
@@ -311,12 +311,12 @@ Teams are prioritized for play based on:
 - TD hits Publish → event status changes to `active`
 - `visibility.schedulePublic` set to true
 - Players notified via email with magic link
-- Magic link → `/schedule/:eventId` public page
+- Magic link → `/scheduleOld/:eventId` public page
 
 **Email contains:**
 - Event name, date, venue
 - Magic link for player's personalized view
-- No login required for basic schedule view
+- No login required for basic scheduleOld view
 
 **API route needed:**
 - `PATCH /event/:id/publish`

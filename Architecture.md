@@ -23,9 +23,9 @@ Every collection has `tenantId`. The `tenantMiddleware` reads `x-tenant-id` from
 
 ### Role Hierarchy
 - `tenant_admin` — global, manages all tenants (you)
-- `admin` — tenant scoped, creates events, manages schedule
+- `admin` — tenant scoped, creates events, manages scheduleOld
 - `editor` — captain equivalent, enters scores, manages roster
-- `user` — read only, views schedule and standings
+- `user` — read only, views scheduleOld and standings
 
 ### Permissions
 Permission documents exist in Atlas on Role collection but are shelved for v2. Role hierarchy handles access control for now via `getEffectiveRole`.
@@ -98,3 +98,33 @@ SESSION_SECRET=...
 - SendGrid or Resend for email
 - 30 min reminder before game via `event.notifications.reminderMinutesBefore`
 - Magic link / email lookup for casual users — no forced signup
+
+## Planned Refactor — Data Access Layer
+
+Current state: routes query MongoDB directly
+Target state: repository pattern separating data access from business logic
+
+Structure:
+src/
+repositories/
+team.js       — all Team queries
+event.js      — all Event queries
+game.js       — all Game queries
+slot.js       — all Slot queries
+user.js       — all User queries
+services/
+scheduleGenerator.js  — algorithm, calls repositories
+routes/
+event.js      — HTTP only, calls services/repositories
+
+Priority: after schedule algorithm is working
+
+## Core Design Principle
+Reliability over features. The target user has been burned by janky
+sports software before. Every feature must work correctly under
+pressure — during a live tournament with stressed volunteers.
+
+- Always confirm before destructive actions
+- Every score entry is versioned
+- Schedule generation is deterministic and testable
+- Graceful error handling everywhere — never a blank screen

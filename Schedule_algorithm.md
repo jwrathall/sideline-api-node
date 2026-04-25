@@ -37,4 +37,4 @@ Teams are prioritized for play based on:
 3. Last played slot (teams that played most recently sit out)
 
 
-*** see schedule section 6 in APP - event.md
+*** see scheduleOld section 6 in APP - event.md
