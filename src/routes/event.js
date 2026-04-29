@@ -119,7 +119,7 @@ router.post("/:id/generate", isAuthenticated, tenantMiddleware, async (req, res)
 
     }
     catch(err){
-        console.error('Error generating schedule:', error);
+        console.error('Error generating schedule:', err);
         res.status(500).json({ error: 'Error generating schedule' });
     }
 })
