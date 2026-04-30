@@ -27,7 +27,7 @@ export const generateSchedule = async(event, teams, venues, db) => {
     const games = [];
     let lastSitOut = null;
 
-    //
+    //small changes
     for(let i = 0; i < numSlots; ++i) {
         // which team sits
         const sitOut = pickSitOut(teams, sitOutHistory, lastSitOut);
